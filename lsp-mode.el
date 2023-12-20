@@ -8657,14 +8657,16 @@ When ALL is t, erase all log buffers of the running session."
 
 (defun lsp-json-rpc-process-queue ()
   (while (not lsp-json-rpc-done)
-    (while lsp-json-rpc-queue
-      (-let (((proc . message) (pop lsp-json-rpc-queue)))
+    (let (popped)
+      (with-mutex lsp-json-rpc-mutex
+        (while (not lsp-json-rpc-queue)
+          (condition-wait lsp-json-rpc-condition))
+        (setq popped (pop lsp-json-rpc-queue)))
+      (-let (((proc . message) popped))
         (json-rpc-send
          proc message
          :null-object nil
-         :false-object :json-false)))
-    (with-mutex lsp-json-rpc-mutex
-      (condition-wait lsp-json-rpc-condition))))
+         :false-object :json-false)))))
 
 (cl-defmethod lsp-process-id (process) (json-rpc-pid process))
 
